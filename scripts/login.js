@@ -4,13 +4,13 @@ import fs from 'fs';
 
 const LOGIN_URL = 'https://ctrl.lunes.host/auth/login';
 
-// Telegram 通知
+// Telegram уведомление
 async function notifyTelegram({ ok, stage, msg, screenshotPath }) {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
     if (!token || !chatId) {
-      console.log('[WARN] TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID Не установлено，уведомление пропущено');
+      console.log('[WARN] TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID Не установлено，уведомление пропущено');
       return;
     }
 
