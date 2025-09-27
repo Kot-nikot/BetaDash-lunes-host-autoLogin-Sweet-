@@ -10,15 +10,15 @@ async function notifyTelegram({ ok, stage, msg, screenshotPath }) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
     if (!token || !chatId) {
-      console.log('[WARN] TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID 未设置，跳过通知');
+      console.log('[WARN] TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID Не установлено，уведомление пропущено');
       return;
     }
 
     const text = [
-      `🔔 Lunes 自动操作：${ok ? '✅ 成功' : '❌ 失败'}`,
-      `阶段：${stage}`,
-      msg ? `信息：${msg}` : '',
-      `时间：${new Date().toISOString()}`
+      `🔔 Lunes автоматическая аутентификация：${ok ? '✅ Успешно' : '❌ Неудачно'}`,
+      `Этап：${stage}`,
+      msg ? `Информация：${msg}` : '',
+      `Время：${new Date().toISOString()}`
     ].filter(Boolean).join('\n');
 
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -31,23 +31,23 @@ async function notifyTelegram({ ok, stage, msg, screenshotPath }) {
       })
     });
 
-    // 如果有截图，再发图
+    // Если есть скриншот, присылаем его
     if (screenshotPath && fs.existsSync(screenshotPath)) {
       const photoUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
       const form = new FormData();
       form.append('chat_id', chatId);
-      form.append('caption', `Lunes 自动操作截图（${stage}）`);
+      form.append('caption', `Lunes автоматическое создание скриншота（${stage}）`);
       form.append('photo', new Blob([fs.readFileSync(screenshotPath)]), 'screenshot.png');
       await fetch(photoUrl, { method: 'POST', body: form });
     }
   } catch (e) {
-    console.log('[WARN] Telegram 通知失败：', e.message);
+    console.log('[WARN] Telegram сбой：', e.message);
   }
 }
 
 function envOrThrow(name) {
   const v = process.env[name];
-  if (!v) throw new Error(`环境变量 ${name} 未设置`);
+  if (!v) throw new Error(`Переменная окружения ${name} не установлена`);
   return v;
 }
 
@@ -66,20 +66,20 @@ async function main() {
   const screenshot = (name) => `./${name}.png`;
 
   try {
-    // 1) 打开登录页
+    // 1) Открываем страницу входа
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-    // 检查人机验证
-    const humanCheckText = await page.locator('text=/Verify you are human|需要验证|安全检查|review the security/i').first();
+    // Проверка CAPCHI
+    const humanCheckText = await page.locator('text=/Verify you are human|Требуется подтверждение | Проверка безопасности|review the security/i').first();
     if (await humanCheckText.count()) {
       const sp = screenshot('01-human-check');
       await page.screenshot({ path: sp, fullPage: true });
-      await notifyTelegram({ ok: false, stage: '打开登录页', msg: '检测到人机验证页面', screenshotPath: sp });
+      await notifyTelegram({ ok: false, stage: 'Открытие страницы входа', msg: 'Онарузена проверка на бота', screenshotPath: sp });
       process.exitCode = 2;
       return;
     }
 
-    // 2) 输入用户名密码
+    // 2) ввод данных пользоватенля
     const userInput = page.locator('input[name="username"]');
     const passInput = page.locator('input[name="password"]');
     await userInput.waitFor({ state: 'visible', timeout: 30_000 });
@@ -99,18 +99,18 @@ async function main() {
       loginBtn.click({ timeout: 10_000 })
     ]);
 
-    // 3) 登录结果截图
+    // 3) Скрин результата
     const spAfter = screenshot('03-after-submit');
     await page.screenshot({ path: spAfter, fullPage: true });
 
     const url = page.url();
-    const successHint = await page.locator('text=/Dashboard|Logout|Sign out|控制台|面板/i').first().count();
+    const successHint = await page.locator('text=/Dashboard|Logout|Sign out|Консоль | Панель управления/i').first().count();
     const stillOnLogin = /\/auth\/login/i.test(url);
 
     if (!stillOnLogin || successHint > 0) {
-      await notifyTelegram({ ok: true, stage: '登录成功', msg: `当前 URL：${url}`, screenshotPath: spAfter });
+      await notifyTelegram({ ok: true, stage: 'Вход выполнен успешно', msg: `Текущий URL：${url}`, screenshotPath: spAfter });
 
-      // **进入服务器详情**
+      // **Вход в детали сервера**
       const serverLink = page.locator('a[href="/server/5202fe13"]');
       await serverLink.waitFor({ state: 'visible', timeout: 20_000 });
       await serverLink.click({ timeout: 10_000 });
@@ -118,57 +118,57 @@ async function main() {
       await page.waitForLoadState('networkidle', { timeout: 30_000 });
       const spServer = screenshot('04-server-page');
       await page.screenshot({ path: spServer, fullPage: true });
-      await notifyTelegram({ ok: true, stage: '进入服务器页面', msg: '已成功打开服务器详情', screenshotPath: spServer });
+      await notifyTelegram({ ok: true, stage: 'Вход на странице сервера', msg: 'Сведения для сервера успешно открыты', screenshotPath: spServer });
 
-      // **点击 Console 菜单**
+      // **Нажимаем Console **
       const consoleMenu = page.locator('a[href="/server/5202fe13"].active');
       await consoleMenu.waitFor({ state: 'visible', timeout: 15_000 });
       await consoleMenu.click({ timeout: 5_000 });
 
       await page.waitForLoadState('networkidle', { timeout: 10_000 });
 
-      // **点击 Restart 按钮**
+      // **Жмем Restart**
       const restartBtn = page.locator('button:has-text("Restart")');
       await restartBtn.waitFor({ state: 'visible', timeout: 15_000 });
       await restartBtn.click();
-      await notifyTelegram({ ok: true, stage: '点击 Restart', msg: 'VPS 正在重启' });
+      await notifyTelegram({ ok: true, stage: 'Нажмите Restart', msg: 'Перезагрузка VPS' });
 
-      // 等待 VPS 重启（约 10 秒）
+      // Ждем перезагрузку VPS  10 сек）
       await page.waitForTimeout(10000);
 
-      // **输入命令并回车**
+      // **Ввод команды и нажатие ENTER**
       const commandInput = page.locator('input[placeholder="Type a command..."]');
       await commandInput.waitFor({ state: 'visible', timeout: 20_000 });
       await commandInput.fill('working properly');
       await commandInput.press('Enter');
 
-      // 等待输出稳定
+      // Ожидание
       await page.waitForTimeout(5000);
 
-      // 截图并通知
+      //скрин и уведомление
       const spCommand = screenshot('05-command-executed');
       await page.screenshot({ path: spCommand, fullPage: true });
-      await notifyTelegram({ ok: true, stage: '命令执行完成', msg: 'restart.sh 已执行', screenshotPath: spCommand });
+      await notifyTelegram({ ok: true, stage: 'Команда выполнена', msg: 'restart.sh выполнен', screenshotPath: spCommand });
 
       process.exitCode = 0;
       return;
     }
 
-    // 登录失败处理
-    const errorMsgNode = page.locator('text=/Invalid|incorrect|错误|失败|无效/i');
+    // Обработка ошибок входа
+    const errorMsgNode = page.locator('text=/Invalid|incorrect|Ошибка|Сбой| Недействительный/i');
     const hasError = await errorMsgNode.count();
     const errorMsg = hasError ? await errorMsgNode.first().innerText().catch(() => '') : '';
     await notifyTelegram({
       ok: false,
-      stage: '登录失败',
-      msg: errorMsg ? `疑似失败（${errorMsg}）` : '仍在登录页',
+      stage: 'Не удалось войти',
+      msg: errorMsg ? `Подозрение на не удачу（${errorMsg}）` : 'Все еще на странице входа',
       screenshotPath: spAfter
     });
     process.exitCode = 1;
   } catch (e) {
     const sp = screenshot('99-error');
     try { await page.screenshot({ path: sp, fullPage: true }); } catch {}
-    await notifyTelegram({ ok: false, stage: '异常', msg: e?.message || String(e), screenshotPath: fs.existsSync(sp) ? sp : undefined });
+    await notifyTelegram({ ok: false, stage: 'Исключение', msg: e?.message || String(e), screenshotPath: fs.existsSync(sp) ? sp : undefined });
     process.exitCode = 1;
   } finally {
     await context.close();
