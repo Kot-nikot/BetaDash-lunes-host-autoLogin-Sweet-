@@ -3,7 +3,7 @@ name: Lunes Auto Login(Sweet-Node6-US)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 * * *"  
+    - cron: "0 22 * * *"  
 
 jobs:
   login:
